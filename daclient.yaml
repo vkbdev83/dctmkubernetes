@@ -1,0 +1,82 @@
+#Service
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: daservice
+  labels:
+    app: daclient
+spec:
+  type: NodePort
+  ports:
+    - port: 80
+      name: "8080"
+      nodePort: 31184
+      targetPort: 8080
+
+  selector:
+    app: daclient
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+    name: davolume
+    labels:
+      app: daclient
+spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 10Gi
+status: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: daclient
+  name: dapod
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: daclient
+  template:
+    metadata:
+      labels:
+        app: daclient
+    spec:
+      containers:
+      - env:
+        - name: DA_EXT_CONF
+          value: /opt/tomcat/webapps/da/external-configurations
+        - name: DFC_PROPERTIES
+          value: dfc.data.dir=/opt/tomcat/data::dfc.tokenstorage.dir=/opt/tomcat/data::dfc.tokenstorage.enable=false::dfc.docbroker.host[0]=dctmdocbroker::dfc.docbroker.port[0]=1489::dfc.globalregistry.repository=dctmrepo::dfc.globalregistry.username=dmadmin::dfc.globalregistry.password=vishadmin123
+        - name: PREFERPASS
+          value: webtop
+        - name: PRESETPASS
+          value: webtop
+        - name: KUBERNETES
+          value: "true"
+        image: asia.gcr.io/gcpdctmplatform/daclient:20.2
+        name: daclient
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - mountPath: /opt/tomcat/webapps/da/external-configurations
+          name: damount
+          subPath: tomcat/external-configurations
+        - mountPath: /opt/tomcat/logs
+          name: damount
+          subPath: tomcat/logs
+        - name: damount  
+          mountPath: /documentum/logs
+          subPath: tomcat/logs/documentum 
+      restartPolicy: Always
+      volumes:
+      - name: damount
+        persistentVolumeClaim:
+          claimName: davolume
+status: {}
+

@@ -1,0 +1,190 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dctmrepoconfig
+  labels:
+    app: dctmrepo
+data:
+  AEK_ALGORITHM: "AES_256_CBC"
+  APP_SERVER_PASSWORD: "jbosss123"
+  ROOT_PASSWORD: "root123"
+  CONTENTSERVER_PORT: "45326"
+  DATABASE_HOST: postgresdbservice
+  DATABASE_PASSWORD: postgres
+  DATABASE_SERVER_PORT: "5432"
+  DATABASE_USER: postgres
+  DOCBASE_ID: "453216"
+  DOCBASE_NAME: dctmrepo
+  DOCBASE_PASSWORD: dctmrepo123
+  DOCBASE_OWNER_NAME: dctmrepo
+  INSTALLER_UI: silent
+  INSTALL_OWNER: dmadmin
+  INSTALL_OWNER_PASSWORD: "vishadmin123"
+  INSTALL_OWNER_UID: "1000"
+  KUBERNETES: "true"
+  DOCBROKER_SERVICE_NAME: "dctmdocbroker"
+  DOCBROKER_PORT: "1489"
+  CONTAINER_NAME: "dctmrepopod"
+  DOCBROKERS_COUNT: "1"
+  DOCBROKER_CLUSTER_SPACE: default.svc.cluster.local
+  GLOBAL_REGISTRY_PASSWORD: admin123*
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+    name: csdatavolume
+    labels:
+      app: dctmrepo
+spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 10Gi
+status: {}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: dctmrepopod
+spec:
+  serviceName: "dctmrepopod"
+  replicas: 1
+  selector:
+    matchLabels:
+        app: dctmrepo
+  template:
+    metadata:
+      labels:
+        app: dctmrepo
+    spec:
+      containers:
+      - envFrom:
+          - configMapRef:
+              name: dctmrepoconfig
+        image: asia.gcr.io/gcpdctmplatform/dctmcs:20.2
+        name: dctmcs20
+        readinessProbe:
+          exec: {
+            command: [
+              bash,
+              -c,
+              /opt/dctm_docker/scripts/cs_readiness.sh
+            ]            
+          }
+          initialDelaySeconds: 300
+          periodSeconds: 120
+          failureThreshold: 2
+          successThreshold: 1
+          timeoutSeconds: 60
+        livenessProbe:
+          exec: {
+            command: [
+              bash,
+              -c,
+              /opt/dctm_docker/scripts/cs_liveness.sh
+            ]            
+          }
+          initialDelaySeconds: 1200
+          failureThreshold: 5
+          timeoutSeconds: 60
+        ports:
+        - containerPort: 45326
+        - containerPort: 45327
+        - containerPort: 9080
+        - containerPort: 9082
+        - containerPort: 9081
+        - containerPort: 9084
+        - containerPort: 8081
+        - containerPort: 8443
+        resources: {}
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /opt/dctm/odbc
+          name: dctmrepo-local
+          subPath: odbc
+        - mountPath: /opt/dctm/dba/auth
+          name: dctmrepo-local
+          subPath: dba/auth
+        - mountPath: /opt/dctm/dba
+          name: dctmrepo-local
+          subPath: dba
+        - mountPath: /opt/dctm/dba/java_methods
+          name: dctmrepo-local
+          subPath: dba/java_methods
+        - mountPath: /opt/dctm/dba/log
+          name: dctmrepo-local
+          subPath: dba/log
+        - mountPath: /opt/dctm/dba/secure
+          name: dctmrepo-local
+          subPath: dba/secure
+        - mountPath: /opt/dctm/share
+          name: dctmrepo-local
+          subPath: share
+        - mountPath: /opt/dctm/config
+          name: dctmrepo-local
+          subPath: config
+        - mountPath: /opt/dctm/mdserver_conf
+          name: dctmrepo-local
+          subPath: conf
+        - mountPath: /opt/dctm/wildfly17.0.1/server/DctmServer_MethodServer/log
+          name: dctmrepo-local
+          subPath: log  
+        - mountPath: /opt/dctm/wildfly17.0.1/server/DctmServer_MethodServer/logs
+          name: dctmrepo-local
+          subPath: logs  
+        - mountPath: /opt/dctm/kube
+          name: dctmrepo-local
+          subPath: kube
+      restartPolicy: Always
+      serviceAccountName: ""
+      volumes:
+      - name: dctmrepo-data
+        persistentVolumeClaim:
+          claimName: csdatavolume
+  volumeClaimTemplates:
+  - metadata:
+      name: dctmrepo-local
+    spec:
+      accessModes:  ["ReadWriteOnce"] 
+      resources:
+        requests:
+          storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+    labels:
+      app: dctmrepo
+    name: dctmreposervice
+spec:
+    ports:
+    - name: "45326"
+      port: 45326
+      targetPort: 45326
+    - name: "45327"
+      port: 45327
+      targetPort: 45327
+    - name: "9080"
+      port: 9080
+      targetPort: 9080
+    - name: "9082"
+      port: 9082
+      targetPort: 9082
+    - name: "9081"
+      port: 9081
+      targetPort: 9081
+    - name: "9084"
+      port: 9084
+      targetPort: 9084
+    - name: "8081"
+      port: 8081
+      targetPort: 8081
+    - name: "8443"
+      port: 8443
+      targetPort: 8443
+    clusterIP: None
+    selector:
+      app: dctmrepo
+    

@@ -1,0 +1,114 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dctmdocbrokerconfig
+  labels:
+    app: dctmdocbroker
+data:
+  ROOT_PASSWORD: "root123"
+  onlyDocbroker: "true"
+  INSTALLER_UI: silent
+  INSTALL_OWNER: dmadmin
+  INSTALL_OWNER_PASSWORD: "vishadmin123"
+  INSTALL_OWNER_UID: "1000"
+  KUBERNETES: "true"
+  ExtDocbrokerPort: "1689"
+  DOCBROKER_PORT: "1489"
+  EXT_DOCBROKER_ENABLE: "true"
+  DOCBROKER_CONNECT_MODE: "native"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: dctmdocbroker
+spec:
+  serviceName: "dctmdocbroker"
+  replicas: 1
+  selector:
+    matchLabels:
+        app: dctmdocbroker
+  template:
+    metadata:
+      labels:
+        app: dctmdocbroker
+    spec:
+      containers:
+      - envFrom:
+          - configMapRef:
+              name: dctmdocbrokerconfig
+        image: asia.gcr.io/gcpdctmplatform/dctmcs:20.2
+        name: dctmdocbroker
+        readinessProbe:
+          exec: {
+            command: [
+              bash,
+              -c,
+              /opt/dctm_docker/scripts/docbroker_readiness.sh
+            ]            
+          }
+          initialDelaySeconds: 120
+          periodSeconds: 120
+          failureThreshold: 2
+          successThreshold: 1
+          timeoutSeconds: 60
+        livenessProbe:
+          exec: {
+            command: [
+              bash,
+              -c,
+              /opt/dctm_docker/scripts/docbroker_liveness.sh
+            ]            
+          }
+          initialDelaySeconds: 300
+          periodSeconds: 180
+          failureThreshold: 5
+          timeoutSeconds: 60
+        ports:
+        - containerPort: 1489
+        - containerPort: 1490
+        - containerPort: 1689
+        - containerPort: 1690
+        resources: {}
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /opt/dctm/dba/log
+          name: dctmrepo-local
+          subPath: dba/log
+        - mountPath: /opt/dctm/kube
+          name: dctmrepo-local
+          subPath: kube
+      restartPolicy: Always
+      serviceAccountName: ""
+  volumeClaimTemplates:
+  - metadata:
+      name: dctmrepo-local
+    spec:
+      accessModes:  ["ReadWriteOnce"] 
+      resources:
+        requests:
+          storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+    labels:
+      app: dctmdocbroker
+    name: dctmdocbroker
+spec:
+    ports:
+    - name: "1489"
+      port: 1489
+      targetPort: 1489
+    - name: "1490"
+      port: 1490
+      targetPort: 1490
+    - name: "1689"
+      port: 1689
+      targetPort: 1689
+    - name: "1690"
+      port: 1690
+      targetPort: 1690
+    clusterIP: None
+    selector:
+      app: dctmdocbroker
